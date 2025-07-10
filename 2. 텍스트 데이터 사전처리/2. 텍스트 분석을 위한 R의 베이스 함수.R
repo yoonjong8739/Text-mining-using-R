@@ -133,3 +133,89 @@ mylocs
 # grepl()은 해당 표현이 등장하는지 여부를 TRUE/FALSE로 알려줌
 grep("software", mysentences) # 'software'가 등장하는 문장 위치
 grepl("software", mysentences) # 'software'가 등장하는지 여부
+
+# sub()와 gsub() : 특정 표현이 텍스트 데이터에서 등장하는지 확인
+# sub()은 첫 번째로 등장하는 표현만 바꿈
+# gsub()은 모든 표현을 바꿈
+sub("ing", "ING", mysentence) # 첫 번째 'ing'를 'ING'로 바꿈
+gsub("ing", "ING", mysentence) # 모든 'ing'를 'ING'로 바꿈
+
+sent1 <- R_wiki_sent[[1]][1]
+new_sent1 <- gsub("data visualization", "data-visualization", sent1) # 'data visualization'을 'data-visualization'으로 바꿈
+
+sum(table(strsplit(sent1, split = " "))) # 단어 수
+sum(table(strsplit(new_sent1, split = " "))) # 단어 수
+
+# and, a, for 단어 삭제
+drop_sent1 <- gsub("and |a |for ", "", new_sent1) # 'and', 'a', 'for' 단어를 삭제
+print(drop_sent1)
+sum(table(strsplit(drop_sent1, split = " ")))
+
+# regmatches()와 substr(): 원하는 표현만 추출 or 배제하거나 원하는 위치의 텍스트만 선별
+mypattern <- regexpr("ing", mysentence) # 'ing'의 위치 정보
+regmatches(mysentence, mypattern) # 'ing'가 등장하는 부분만 추출
+
+mypattern <- gregexpr("ing", mysentence) # 'ing'의 위치 정보
+regmatches(mysentence, mypattern) # 모든 'ing'가 등장하는 부분만 추출
+
+mypattern <- regexpr("ing", mysentence)
+regmatches(mysentence, mypattern, invert = TRUE) # 'ing'가 등장하지 않는 부분만 추출
+
+mypattern <- gregexpr("ing", mysentence) # 'ing'의 위치 정보
+regmatches(mysentence, mypattern,  invert = TRUE) # 모든 'ing'가 등장하지 않는 부분만 추출
+strsplit(mysentence, split = "ing") # 'ing'를 기준으로 문장을 분리
+gsub("ing", "", mysentence)
+
+# substr()는 특정 위치의 텍스트만 추출
+substr(mysentence, 1, 20) # 첫 번째부터 20번째까지의 텍스트 추출
+substr(mysentences, 1, 20) # 첫 번째부터 20번째까지의 텍스트 추출
+
+# 정규표현식
+my2sentence <- c("Learning R is so interesting", "He is a fascinating singer")
+mypattern1 <- gregexpr("[[:alpha:]]ing", my2sentence) # 'ing'로 끝나는 단어 찾기
+regmatches(my2sentence, mypattern1) # 'ing'로 끝나는 단어 추출
+
+mypattern1 <- gregexpr("[[:alpha:]](ing)", my2sentence)
+regmatches(my2sentence, mypattern1)
+
+mypattern2 <- gregexpr("[[:alpha:]]+(ing)", my2sentence) # 'ing'로 끝나는 단어 찾기
+regmatches(my2sentence, mypattern2) # 'ing'로 끝나는 단어 추출
+
+mypattern3 <- gregexpr("[[:alpha:]]+(ing)\\b", my2sentence) # 'ing'로 끝나고 뒤에 공백이 있는 단어 찾기
+regmatches(my2sentence, mypattern3) # 'ing'로 끝나고 뒤에 공백이 있는 단어 추출
+
+mypattern <- gregexpr("[[:alpha:]]+(ing)\\b", mysentences)
+myings <- regmatches(mysentences, mypattern) # 'ing'로 끝나고 뒤에 공백이 있는 단어 추출
+table(unlist(myings)) # 'ing'로 끝나는 단어의 빈도수 계산
+
+mypattern <- gregexpr("[[:alpha:]]+(ing)\\b", tolower(mysentences))
+myings <- regmatches(tolower(mysentences), mypattern)
+table(unlist(myings))
+
+mypattern <- gregexpr("(stat)[[:alpha:]]+", toupper(mysentences))
+regmatches(toupper(mysentences), mypattern) # 'stat'로 시작하는 단어 추출
+
+mypattern <- gregexpr("[[:upper:]]", mysentences)
+my_upper <- regmatches(mysentences, mypattern)
+table(unlist(my_upper)) # 대문자 단어의 빈도수 계산
+
+mypattern <- gregexpr("[[:lower:]]", mysentences)
+my_lower <- regmatches(mysentences, mypattern)
+table(unlist(my_lower))
+
+mypattern <- gregexpr("[[:upper:]]", toupper(mysentences)) # 대문자 단어 추출
+my_alphas <- regmatches(toupper(mysentences), mypattern)
+mytable <- table(unlist(my_alphas)) # 대문자 단어의 빈도수 계산
+mytable
+
+mytable[mytable == max(mytable)] # 가장 많이 등장한 대문자 단어 추출
+length(mytable) # 대문자 단어의 개수
+sum(mytable) # 대문자 단어의 총 개수
+
+library('ggplot2')
+mydata <- data.frame(mytable)
+ggplot(data = mydata, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity") + guides(fill = "none") +
+  geom_hline(aes(yintercept = median(mytable))) +
+  labs(x = "알파벳(대문자와 소문자 구분 없음)", y = "빈도수") +
+  theme_bw()
