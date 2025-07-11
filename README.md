@@ -24,8 +24,8 @@
 <details>
 <summary>2부 텍스트 데이터 처리</summary>
 
-- [**01 텍스트 분석을 위한 기초적 R 함수**](https://github.com/yoonjong8739/Text-mining-using-R/blob/6b513d605ed905438adc63d77b46117424e90086/2.%20%ED%85%8D%EC%8A%A4%ED%8A%B8%20%EB%8D%B0%EC%9D%B4%ED%84%B0%20%EC%82%AC%EC%A0%84%EC%B2%98%EB%A6%AC/1.%20%ED%85%8D%EC%8A%A4%ED%8A%B8%20%EB%B6%84%EC%84%9D%EC%9D%84%20%EC%9C%84%ED%95%9C%20%EA%B8%B0%EC%B4%88%EC%A0%81%20R%20%ED%95%A8%EC%88%98.R)
-- [**02 텍스트 분석을 위한 R의 베이스 함수**](https://github.com/yoonjong8739/Text-mining-using-R/blob/master/2.%20%ED%85%8D%EC%8A%A4%ED%8A%B8%20%EB%8D%B0%EC%9D%B4%ED%84%B0%20%EC%82%AC%EC%A0%84%EC%B2%98%EB%A6%AC/2.%20%ED%85%8D%EC%8A%A4%ED%8A%B8%20%EB%B6%84%EC%84%9D%EC%9D%84%20%EC%9C%84%ED%95%9C%20R%EC%9D%98%20%EB%B2%A0%EC%9D%B4%EC%8A%A4%20%ED%95%A8%EC%88%98.R)
+- [**01 텍스트 분석을 위한 기초적 R 함수**](2. 텍스트 데이터 사전처리/1. 텍스트 분석을 위한 기초적 R 함수.R)
+- [**02 텍스트 분석을 위한 R의 베이스 함수**](2. 텍스트 데이터 사전처리/2. 텍스트 분석을 위한 R의 베이스 함수.R)
 - **03 텍스트 분석을 위한 stringr 패키지 함수**
 - **04 말뭉치 텍스트 데이터 사전처리**
 - **05 한국어 텍스트 데이터 처리**
