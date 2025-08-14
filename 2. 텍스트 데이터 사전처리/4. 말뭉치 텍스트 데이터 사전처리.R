@@ -207,3 +207,59 @@ result.comparing <- rbind(
 colnames(result.comparing) <- c("before", "after")
 rownames(result.comparing) <- c("고유문자 수", "총 문자 수", "고유단어 수", "총 단어 수")
 result.comparing
+
+# 문서 X 단어 행렬(DTM) 구축
+dtm.e <- DocumentTermMatrix(mycorpus)
+dtm.e
+
+# 행렬식으로 표현
+rownames(dtm.e[,])
+colnames(dtm.e[,])
+
+# 행렬의 일부만 확인
+inspect(dtm.e[1:3, 260:265])
+
+# 말뭉치 & DTM 저장
+saveRDS(mycorpus, "./2. 텍스트 데이터 사전처리/CorpusE_preprocess.RData")
+saveRDS(dtm.e, "./2. 텍스트 데이터 사전처리/dtmE.RData")
+
+# TF-IDF 적용
+dtm.e.tfidf <- DocumentTermMatrix(mycorpus, 
+                                  control = list(weighting = function(x) weightTfIdf(x, normalize = T)))
+dtm.e.tfidf
+
+# TF는 크지만 TF-IDF는 상대적으로 작은 단어
+value.tf.dtm <- as.vector(as.matrix(dtm.e[,]))
+value.tfidf.dtm <- as.vector(as.matrix(dtm.e.tfidf[,]))
+
+# 단어명과 문서명 추출
+word.label.dtm <- rep(colnames(dtm.e[,]), each = dim(dtm.e[,])[1])
+doc.label.dtm <- rep(rownames(dtm.e[,]), dim(dtm.e[,])[2])
+
+mydata <- data.frame(word.label.dtm, doc.label.dtm, value.tf.dtm, value.tfidf.dtm)
+colnames(mydata) <- c("word", "doc", "TF", "TF-IDF")
+mydata[150:160, ]
+
+# 상관계수
+cor.test(mydata$TF, mydata$`TF-IDF`, method = "kendall") # 0이 많기 때문에 켄달 상관계수 사용
+cor.test(mydata$TF[mydata$TF > 0 & mydata$`TF-IDF` > 0],
+         mydata$`TF-IDF`[mydata$TF > 0 & mydata$`TF-IDF` > 0], method = "kendall")
+
+# 엔그램 계산 및 처리 과정
+#install.packages("RWeka")
+library(RWeka)
+bigramTokenizer <- function(x){
+  NGramTokenizer(x, Weka_control(min = 2, max = 3))
+}
+mytext <- c("The United States comprises fifty states.", "In the United States, each state has its own laws.", "However, federal law overrides state law in the United States.")
+
+# mytemp(불용어 포함)에 적용한 결과
+mytemp <- VCorpus(VectorSource(mytext)) # 입력된 텍스트를 벡터 형태로 변환
+ngram.tdm <- TermDocumentMatrix(mytemp, control = list(tokenize = bigramTokenizer))
+bigramlist <- apply(ngram.tdm[,], 1, sum)
+sort(bigramlist, decreasing = T)[1:10] # 빈도수가 높은 바이그램
+
+# mycorpus(불용어 제거)에 적용한 결과
+ngram.tdm <- TermDocumentMatrix(mycorpus, control = list(tokenize = bigramTokenizer))
+bigramlist <- apply(ngram.tdm[,], 1, sum)
+sort(bigramlist, decreasing = T)[1:10] # 빈도수가 높은 바이그램
