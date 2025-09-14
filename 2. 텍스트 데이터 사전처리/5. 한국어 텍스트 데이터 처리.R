@@ -111,6 +111,10 @@ myNounCorpus <- mytempfunc(myNounCorpus, "미투[[:alpha:]]{1,}", "미투")
 dtm.k <- DocumentTermMatrix(myNounCorpus)
 dtm.k
 
+# 말뭉치 & DTM 저장
+saveRDS(myNounCorpus, "./2. 텍스트 데이터 사전처리/CorpusK_preprocess.RData")
+saveRDS(dtm.k, "./2. 텍스트 데이터 사전처리/dtmK.RData")
+
 # 사전을 정의하기 이전
 useSejongDic()
 populism_text <- "포퓰리즘이 등장하면 사회적 커뮤니케이션의 모습이 왜곡된다. ."
