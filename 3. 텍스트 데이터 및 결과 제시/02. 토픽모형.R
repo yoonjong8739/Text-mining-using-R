@@ -26,11 +26,13 @@ lda.topics <- data.frame(posterior_lda$topics)
 apply(lda.topics, 1, sum)
 apply(lda.topics, 2, sum)  # 전체 말뭉치에서 가장 자주 등장하는 잠재토픽
 
+# 연도별 잠재토픽 변화
 tempyear <- rownames(lda.topics)
 pubyear <- as.numeric(unlist(str_extract_all(tempyear, "[[:digit:]]{4}")))
 topic.by.year <- round(aggregate(as.matrix(lda.topics) ~ pubyear, lda.topics, sum), 5)
 topic.by.year
 
+# 시간에 따른 변화 확인
 fig_LDA_english <- reshape(topic.by.year, idvar = "pubyear",
                            varying = list(2:8),
                            v.names = "X", direction = "long")
@@ -64,7 +66,84 @@ round(posterior(LDA(dtm.e, k = 7, control = list(seed = 20191116, alpha = 100)))
 # alpha값이 작을수록 특정 문서에서 특정 토픽이 주도적으로 드러나는 결과를 얻을 수 있고, alpha값이 증가할수록 특정 문서가 특정 토픽을 강하게 드러낼 확률이 줄어드는 결과를 얻을 수 있다.
 
 ## 상관토픽모형(CTM)
+ctm.out <- CTM(dtm.e, k = 7, control = list(seed = 20191119))
+terms(ctm.out, 20)  # 상위 20개 단어
 
+# 각 문서가 담고있는 잠재토픽의 확률점수를 계산
+posterior_ctm <- posterior(ctm.out)
+ctm.topics <- data.frame(posterior_ctm$topics)
+round(ctm.topics, 3)
+
+# 연도별 잠재토픽 변화
+tempyear <- rownames(ctm.topics)
+pubyear <- as.numeric(unlist(str_extract_all(tempyear, "[[:digit:]]{4}")))
+topic.by.year <- round(aggregate(as.matrix(ctm.topics) ~ pubyear, ctm.topics, sum), 5)
+topic.by.year
+
+# 시간에 따른 변화 확인
+fig_CTM_english <- reshape(topic.by.year, idvar = "pubyear",
+                           varying = list(2:8),
+                           v.names = "X", direction = "long")
+colnames(fig_CTM_english) <- c("year", "topic_i", "score")
+fig_CTM_english
+
+# 각 토픽별 이름
+fig_CTM_english$topic <- factor(fig_CTM_english$topic, labels = c("SNS\nin comm\n", "Inter-culture\ncomm\n",
+                                                                  "Election\nstudies\n", "Health\ncomm\n",
+                                                                  "Stereotype\nin comm\n", "Political\ncomm\n",
+                                                                  "Privacy\nstudies\n"))
+fig_CTM_english
+fig_CTM_english$topic <- as.character(fig_CTM_english$topic)
+head(fig_CTM_english)
+
+ggplot(data = fig_CTM_english, aes(x = year, y = score, fill = topic)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks = 2009:2019, labels = 2009:2019) +
+  scale_y_continuous(breaks = 2*(0:5), labels = 2*(0:5)) +
+  scale_fill_manual(values = 1:7) +
+  labs(x = "Publication Year", y = "Score", fill = "Latent Topic") +
+  ggtitle("CTM: English Journal Papers Corpus") +
+  theme_classic()
+
+# LDA와 CTM 결과 비교
+lda_topic <- factor(as.vector(topics(lda.out)), labels = c("Election studies", "Stereotype in comm", "Political comm", "Privacy studies", "SNS in comm", "Health comm", "Inter-culture comm"))
+
+ctm_topic <- factor(as.vector(topics(ctm.out)), labels = c("SNS in comm", "Inter-culture comm", "Election studies", "Health comm", "Stereotype in comm", "Political comm", "Privacy studies"))
+
+LDA_CTM <- data.frame(as.character(lda_topic), as.character(ctm_topic))
+colnames(LDA_CTM) <- c("lbl_LDA", "lbl_CTM")
+LDA_CTM
+
+# 토픽 분포비교
+distr_topic <- rbind(prop.table(table(LDA_CTM$lbl_LDA)), prop.table(table(LDA_CTM$lbl_CTM)))
+distr_topic
+
+distr_topic <- data.frame(distr_topic)
+distr_topic$model <- c("LDA", "CTM")
+distr_topic
+
+# 시각화
+fig_LDA_CTM <- reshape(distr_topic, idvar = "model", varying = list(1:7), v.names = "prop", direction = "long")
+fig_LDA_CTM
+
+colnames(fig_LDA_CTM) <- c("model", "topic_i", "prop")
+fig_LDA_CTM
+
+fig_LDA_CTM$topic <- factor(fig_LDA_CTM$topic_i, labels = colnames(distr_topic)[1:7])
+fig_LDA_CTM
+
+ggplot(data = fig_LDA_CTM, aes(x = topic, y = prop, fill = model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_y_continuous(breaks = 0.1*(0:3)) +
+  coord_flip() +
+  labs(x = "Sementic labels for 7 Topics", y = "Proportion", fill = "Topic Model") +
+  ggtitle("Comparison between LDA Model and CTM") +
+  theme_bw()
+
+# 토픽이 일치하는 사례
+table(substr(LDA_CTM$lbl_LDA, 1, 8), substr(LDA_CTM$lbl_CTM, 1, 8))
+table(LDA_CTM$lbl_LDA == LDA_CTM$lbl_CTM)
+prop.table(table(LDA_CTM$lbl_LDA == LDA_CTM$lbl_CTM))
 
 ## 구조적 토픽모형(STM)
 
