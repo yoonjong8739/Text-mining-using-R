@@ -66,6 +66,8 @@ round(posterior(LDA(dtm.e, k = 7, control = list(seed = 20191116, alpha = 100)))
 # alpha값이 작을수록 특정 문서에서 특정 토픽이 주도적으로 드러나는 결과를 얻을 수 있고, alpha값이 증가할수록 특정 문서가 특정 토픽을 강하게 드러낼 확률이 줄어드는 결과를 얻을 수 있다.
 
 ## 상관토픽모형(CTM)
+# 잠재토픽들 사이의 상관관계 발생도 추정
+# k차원의 디리클레 랜덤 분포 추출을 위해 로지스틱 정규분포를 사용
 ctm.out <- CTM(dtm.e, k = 7, control = list(seed = 20191119))
 terms(ctm.out, 20)  # 상위 20개 단어
 
@@ -146,6 +148,105 @@ table(LDA_CTM$lbl_LDA == LDA_CTM$lbl_CTM)
 prop.table(table(LDA_CTM$lbl_LDA == LDA_CTM$lbl_CTM))
 
 ## 구조적 토픽모형(STM)
+# 토픽모델 적합도 검증 방법
+# 1. 지속가능성 추정
+# 2. 토픽모델 잔차 과분포 검정
+# 3. 사후추정 순열검증
+library(stm)
+dim(gadarian)
+colnames(gadarian)
+head(gadarian)
+summary(gadarian)
 
+# 1. 텍스트 데이터 준비단계
+# 말뭉치 데이터를 gadarian와 비슷한 방식으로 구성해야 함.
+mytxtdf <- data.frame(dtm.e$dimnames$Docs)
+colnames(mytxtdf) <- "filename"
+
+mytxtdf$year <- as.numeric(unlist(str_extract_all(mytxtdf$filename, "[[:digit:]]{4}")))
+head(mytxtdf)
+
+# 필자가 미국에 체류할 때 0, 귀국했을 때 1
+mytxtdf$return.kor <- ifelse(mytxtdf$year > 2011, 1, 0)
+
+# 논문의 초록을 문자형으로 입력
+mytxtdf$abstract <- NA
+for (i in 1:dim(mytxtdf)[1]){
+  mytxtdf$abstract[i] <- as.character(str_c(corpus.e.pp[[i]]$content, collapse = " "))
+}
+summary(mytxtdf)
+
+# 2. 사전처리(preprocessing)
+# 이미 사전처리되었기 때문에 별도 전처리 기능 비활성화함.
+mypreprocess <- textProcessor(mytxtdf$abstract, metadata = mytxtdf, 
+                              lowercase = F, removestopwords = F, removenumbers = F, removepunctuation = F,
+                              stem = F)
+mypreprocess$documents[1]  # 첫 번째 초록의 단어 명목변수값과 빈도 수
+
+# 3. DTM 구성
+myout <- prepDocuments(documents = mypreprocess$documents,
+                       vocab = mypreprocess$vocab,
+                       meta = mypreprocess$meta,
+                       lower.thresh = 0)  # 제거 단어 빈도 수 임계값(즉, 모든 단어 포함)
+
+# 4. STM 추정
+mystm <- stm(documents = myout$documents,
+             vocab = myout$vocab, K = 7,
+             prevalence =  ~ return.kor,  # 잠재토픽 발현가능성 비교(귀국 전후)
+             data = myout$meta,
+             seed = 20191120,
+             init.type = "Spectral")  # STM 개발자들이 권장하는 기법(공출현 단어 분해시 비음수 행렬 가정하기 때문)
+
+# 5. 토픽별 단어 확인
+labelTopics(model = mystm, topics = 1:7)
+
+# 6. STM 토픽 간의 상관관계
+mystm.corr <- topicCorr(mystm)
+mystm.corr
+
+# 7. 토픽 간 연관 네트워크 시각화
+library(igraph)
+plot(mystm.corr)  # 음의 상관관계이므로 연결되지 않음.
+
+# 8. 메타데이터와 토픽 발현 가능성 관계 테스트
+set.seed(20191121)
+myresult <- estimateEffect(c(1:7) ~ return.kor,  # 귀국 전후로 7개 토픽 발현가능성 통계적 검증
+                           stmobj = mystm, 
+                           metadata = mytxtdf)
+summary(myresult)
+
+# 9. 모형추정 결과 시각화
+par(mfrow = c(2,1))
+plot(myresult, covariate = "return.kor",
+     topics = 3, model = mystm, xlim = c(-1.5, 1.5),
+     main = "Topic 3, p < .05")
+
+plot(myresult, covariate = "return.kor",
+     topics = 5, model = mystm, xlim = c(-1.5, 1.5),
+     main = "Topic 5, p < .05")
+
+# tidtstm을 쓰면 훨씬 효율적
+#devtools::install_github("mikaelpoul/tidystm")
+library(tidystm)
+STM_estimate <- extract.estimateEffect(x = myresult,
+                                       covariate = "return.kor",
+                                       method = "pointestimate",
+                                       model = mystm)
+STM_estimate$label <- factor(STM_estimate$topic,
+                             labels = c("SNS\nin comm", "Election\nstudies", "Stereotype\nin comm",
+                                        "Privacy\nstudies", "Political\ncomm", "Health\ncomm", "Inter-culture\ncomm"))
+STM_estimate$return.kor <- factor(STM_estimate$covariate.value,
+                                  labels = c("In USA\n(Before 2011)", "In Korea\n(Since 2012)"))
+STM_estimate$sig <- ifelse(STM_estimate$topic == 3 | STM_estimate$topic == 5, "Yes", "No")
+
+ggplot(data = STM_estimate, aes(x = label, y = estimate, fill = sig)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(breaks = 0.1 * (0:5)) +
+  scale_fill_manual(values = c("grey80", "grey30")) +
+  labs(x = " ", y = "Estimated prevalence", fill = "Statistically significant?") +
+  ggtitle("Estimated results, STM") +
+  facet_wrap(~ return.kor, ncol = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom")
 
 ## 공통등장단어 토픽모형(BTM)
