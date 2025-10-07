@@ -250,3 +250,107 @@ ggplot(data = STM_estimate, aes(x = label, y = estimate, fill = sig)) +
   theme(legend.position = "bottom")
 
 ## 공통등장단어 토픽모형(BTM)
+# 단어들의 등장 순서를 고려하지 않음 (BoW 기반).
+# tidy text 형태 (엣지 리스트 형태)
+library(tidytext)
+library(tidyverse)
+library(SnowballC)
+
+mytitle <- read.csv("./data/title_english_papers.csv")
+mytitle$title <- as.character(mytitle$title)
+str(mytitle)
+#head(mytitle)
+summary(mytitle)
+
+# BTM 함수에 사용할 수 있는 양식으로 사전처리
+# 1. 텍스트에 숫자 제거, 2. 문장부호, 특수문자 제거
+DF_btm12 <- mytitle %>% 
+  mutate(title = str_remove_all(title, "[[:digit:]]{1,}"),  # 숫자 제거
+         title = str_remove_all(title, "[[:punct:]]{1,}"))  # 문장부호 제거
+
+head(DF_btm12, 3)
+
+# 3. 알파벳 소문자 변환
+DF_btm123 <- mytitle %>% 
+  mutate(title = str_remove_all(title, "[[:digit:]]{1,}"),      # 숫자 제거
+         title = str_remove_all(title, "[[:punct:]]{1,}")) %>%  # 문장부호 제거
+  unnest_tokens(input = title,  # 토큰화할 텍스트
+                output = word,  # 출력변수 명
+                to_lower = T)   # 소문자 변환
+head(DF_btm123)
+
+# 4. 불용어 제거
+DF_btm1234 <- mytitle %>% 
+  mutate(title = str_remove_all(title, "[[:digit:]]{1,}"),      # 숫자 제거
+         title = str_remove_all(title, "[[:punct:]]{1,}")) %>%  # 문장부호 제거
+  unnest_tokens(input = title,  # 토큰화할 텍스트
+                output = word,  # 출력변수 명
+                to_lower = T) %>%    # 소문자 변환
+  anti_join(stop_words, by = "word")  # 불용어 제거
+head(DF_btm1234)
+
+# 5. 어근 동일화(stem)
+DF_btm <- mytitle %>% 
+  mutate(title = str_remove_all(title, "[[:digit:]]{1,}"),      # 숫자 제거
+         title = str_remove_all(title, "[[:punct:]]{1,}")) %>%  # 문장부호 제거
+  unnest_tokens(input = title,  # 토큰화할 텍스트
+                output = word,  # 출력변수 명
+                to_lower = T) %>%    # 소문자 변환
+  anti_join(stop_words, by = "word") %>%   # 불용어 제거
+  mutate(word = wordStem(word))  # 어근 동일화
+head(DF_btm)
+
+length(DF_btm$id)  # 문서 수
+sum(table(DF_btm$word))  # 총 단어 수
+length(table(DF_btm$word))  # 고유 단어 수
+median(table(DF_btm$word))  # 등장 빈도 중위수
+min(table(DF_btm$word))  # 등장 빈도 최솟값
+max(table(DF_btm$word))  # 등장 빈도 최빈값
+
+# BTM 실시
+library(BTM)
+set.seed(20191122)
+btm.out <- BTM(data = DF_btm, k = 7)
+btm.out
+
+# 각 토픽별 단어 목록
+btm_terms <- terms(btm.out, top_n = 20)
+btm_terms
+
+btm_terms_summary <- data.frame(matrix(NA, nrow = 20, ncol = 7))
+for (i in 1:7){
+  btm_terms_summary[,i] <- btm_terms[[i]][, 1]
+}
+colnames(btm_terms_summary) <- paste0("btm_", 1:7)
+btm_terms_summary
+
+# 문서별 잠재토픽 등장 확률
+topic.by.year <- predict(btm.out,  # BTM 모델 
+                         DF_btm)   # BTM 모델을 적용할 텍스트 데이터
+round(topic.by.year, 2)
+
+# 시각화
+topic.by.year <- data.frame(topic.by.year)
+topic.by.year$pubyear <- rownames(topic.by.year)
+topic.by.year$pubyear <- as.numeric(str_extract(topic.by.year$pubyear, "[[:digit:]]{4}"))
+
+topic.by.year <- aggregate(cbind(X1, X2, X3, X4, X5, X6, X7) ~ pubyear, topic.by.year, sum)
+
+fig_BTM_english <- reshape(topic.by.year, idvar = "pubyear",
+                           varying = list(2:8),
+                           v.names = "X", direction = "long")
+colnames(fig_BTM_english) <- c("year", "topic_i", "score")
+fig_BTM_english$topic <- factor(fig_BTM_english$topic_i,
+                                labels = c("Privacy\nstudies", "Stereotype\nin comm", "Health\ncomm", 
+                                           "Election\nstudies", "Inter-culture\ncomm", "SNS\nin comm\n", 
+                                           "Political\ncomm"))
+
+fig_BTM_english$topic <- as.character(fig_BTM_english$topic)  # 토픽 알파벳 순으로 정렬
+ggplot(data = fig_BTM_english, aes(x = year, y = score, fill = topic)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks = 2004:2019, labels = 2004:2019) +
+  scale_y_continuous(breaks = 2*(0:5), labels = 2*(0:5)) +
+  scale_fill_manual(values = cluster.color) +
+  labs(x = "Publication Year", y = "Score", fill = "latent topic") +
+  ggtitle("BTM : Titles of English Journal Papers") +
+  theme_classic()
