@@ -182,4 +182,119 @@ ggplot(data = NRC_sentiment_chapter2, aes(x = chapter, y = prop)) +
   theme(legend.position = "bottom") +
   ggtitle("Sentiment analysis using NRC Lexicon")
 
+# 지도 기계학습을 이용한 감정분석
+library(caret)
+setwd("./data/Twitter-Sentimental-Analysis-master")
 
+h.train <- readLines("happy.txt")
+s.train <- readLines("sad.txt")
+h.test <- readLines("happy_test.txt")
+s.test <- readLines("sad_test.txt")
+
+library(tibble)
+Htrain <- tibble(text = h.train) %>% 
+  mutate(id = str_c("train_happy_", row_number()))
+Htrain
+
+Strain <- tibble(text = s.train) %>% 
+  mutate(id = str_c("train_sad_", row_number()))
+
+Htest <- tibble(text = h.test) %>% 
+  mutate(id = str_c("test_happy_", row_number()))
+
+Stest <- tibble(text = s.test) %>% 
+  mutate(id = str_c("test_sad_", row_number()))
+
+dt <- bind_rows(Htrain, Strain, Htest, Stest) %>% 
+  mutate(
+    type = str_remove_all(str_extract(id, "[[:alpha:]]{3,}_"), "_"),
+    status = str_remove_all(str_extract(id, "_[[:alpha:]]{3,}_"), "_")
+  )
+dt
+
+dt_pp <- dt %>% 
+  mutate(text = str_remove_all(text, "[[:punct:]]{1,}"),
+         text = str_remove_all(text, "[[:digit:]]{1,}"),
+         text = str_squish(text)) %>% 
+  unnest_tokens(input = text,
+                output = word,
+                token = "words",
+                to_lower = T) %>% 
+  anti_join(stop_words, by = 'word') %>%  # 불용어 사전에 포함되지 않은 단어만 조인
+  mutate(word = SnowballC::wordStem(word))
+dt_pp
+
+# 훈련 데이터 라벨 생성
+label_train <- factor(dt$status[dt$type == "train"])
+label_test <- factor(dt$status[dt$type == "test"])
+
+# 훈련 데이터 DTM 생성
+dt_train_dtm <- dt_pp %>% 
+  filter(type == "train") %>% 
+  count(id, word) %>%  # 문서X단어별 빈도
+  cast_dtm(document = id, term = word, value = n)
+dt_train_dtm
+
+dt_train_dtm <- as.matrix(dt_train_dtm)  # 매트릭스 변환을 해야 기계학습 가능
+
+# 훈련 데이터에는 등장했지만 테스트 데이터에 등장하지 않은 단어는 0의 값을 가져야 한다.
+dt_test_dtm <- dt_pp %>% 
+  filter(type == "test") %>% 
+  full_join(dt_pp %>% filter(type == "train") %>% select(word), by="word") %>% 
+  count(id, word) %>% 
+  cast_dtm(document = id, term = word, value = n)
+dt_test_dtm
+
+rownames(dt_test_dtm)
+
+dt_test_dtm <- as.matrix(dt_test_dtm)[1:20, ]
+dt_test_dtm
+
+# Classification Tree
+set.seed(20191121)
+tree_train <- train(x = dt_train_dtm,
+                    y = label_train,
+                    method = "rpart")
+
+pred_tree_train <- predict(tree_train)
+table(pred_tree_train, label_train)
+
+# 테스트 데이터에 적용
+pred_tree_test <- predict(tree_train, newdata = dt_test_dtm)
+table(pred_tree_test, label_test)
+
+confusionMatrix(table(pred_tree_test, label_test))  # 기준범주: happy
+confusionMatrix(table(fct_rev(pred_tree_test), fct_rev(label_test)))  # 기준범주: sad
+
+# Random Forest
+set.seed(20191121)
+RF_train <- train(x = dt_train_dtm,
+                  y = label_train,
+                  method = "ranger",
+                  num.trees = 200)
+
+pred_RF_train <- predict(RF_train)
+table(pred_RF_train, label_train)
+
+# 테스트 데이터에 적용
+pred_RF_test <- predict(RF_train, newdata = dt_test_dtm)
+table(pred_RF_test, label_test)
+
+confusionMatrix(table(pred_RF_test, label_test))  # 기준범주: happy
+confusionMatrix(table(fct_rev(pred_RF_test), fct_rev(label_test)))  # 기준범주: sad
+
+# Neural Network
+set.seed(20191121)
+NN_train <- train(x = dt_train_dtm,
+                  y = label_train,
+                  method = "nnet")
+
+pred_NN_train <- predict(NN_train)
+table(pred_NN_train, label_train)
+
+# 테스트 데이터에 적용
+pred_NN_test <- predict(NN_train, newdata = dt_test_dtm)
+table(pred_NN_test, label_test)
+
+confusionMatrix(table(pred_NN_test, label_test))  # 기준범주: happy
+confusionMatrix(table(fct_rev(pred_NN_test), fct_rev(label_test)))  # 기준범주: sad
